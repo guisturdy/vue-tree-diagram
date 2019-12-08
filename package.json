@@ -1,0 +1,30 @@
+{
+  "name": "vue-tree-diagram",
+  "version": "1.0.0",
+  "description": "A simple component for render tree diagram for Vue.js",
+  "main": "src/component/treeDiagram.vue",
+  "scripts": {
+    "serve": "vue-cli-service serve ./src/main.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/guisturdy/vue-tree-diagram.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/guisturdy/vue-tree-diagram/issues"
+  },
+  "homepage": "https://github.com/guisturdy/vue-tree-diagram#readme",
+  "dependencies": {
+    "@vue/cli-service": "^4.1.1",
+    "vue": "^2.6.10",
+    "vue-template-compiler": "^2.6.10"
+  },
+  "devDependencies": {
+    "eslint": "^6.7.2",
+    "eslint-config-airbnb-base": "^14.0.0",
+    "eslint-plugin-import": "^2.18.2",
+    "eslint-plugin-vue": "^6.0.1"
+  }
+}
