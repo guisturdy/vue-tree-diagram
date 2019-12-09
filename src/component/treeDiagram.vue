@@ -13,7 +13,7 @@ export default {
   methods: {
     handleNodePosition() {
       this.$nextTick(() => {
-        const nodePad = 0;
+        const nodePad = 33;
         const levelPad = 33;
         const {
           list, PIDMap, ChildIDMap, levelID, maxLevel,
@@ -29,36 +29,98 @@ export default {
             });
           }
         };
+        let scaleW = null;
+        let scaleH = null;
+        const getNodeSize = (id) => {
+          if (!nodeStyleMap[id]) {
+            let {
+              width, height,
+            } = this.$refs[`node-${id}`].getBoundingClientRect();
+            if (scaleW === null && width > 0 && height > 0) {
+              const offsetW = this.$refs[`node-${id}`].offsetWidth;
+              const offsetH = this.$refs[`node-${id}`].offsetHeight;
+              scaleW = offsetW / width;
+              scaleH = offsetH / height;
+            }
+            if (scaleW) {
+              width *= scaleW;
+              height *= scaleH;
+            }
+            nodeStyleMap[id] = { width, height };
+          }
+          return nodeStyleMap[id];
+        };
+        const getNodeOffsetWidth = (id) => {
+          if (!nodeOffsetWidth[id]) {
+            let thisNodeOffsetWidth = 0;
+            if (ChildIDMap[id] && ChildIDMap[id].length) {
+              ChildIDMap[id].forEach((cid) => {
+                thisNodeOffsetWidth += getNodeOffsetWidth(cid);
+              });
+            }
+            nodeOffsetWidth[id] = Math.max(getNodeSize(id).width, thisNodeOffsetWidth);
+          }
+          return nodeOffsetWidth[id];
+        };
         for (let level = maxLevel; level >= 0; level -= 1) {
           const thisLevelIDArr = levelID[level];
           let nodeToLeft = 0;
           let childPadLeft = 0;
           let thisLevelMaxHeight = 0;
-          thisLevelIDArr.forEach((id) => {
-            const {
-              width, height,
-            } = this.$refs[`node-${id}`].getBoundingClientRect();
+          let spaceForPrey = 0;
+          for (let levelIDIndex = 0; levelIDIndex < thisLevelIDArr.length; levelIDIndex += 1) {
+            const id = thisLevelIDArr[levelIDIndex];
+            const nextId = thisLevelIDArr[levelIDIndex + 1];
+            const prevId = thisLevelIDArr[levelIDIndex - 1];
+            const { width, height } = getNodeSize(id);
             thisLevelMaxHeight = Math.max(thisLevelMaxHeight, height);
-            let thisNodeOffsetWidth = 0;
-            if (ChildIDMap[id] && ChildIDMap[id].length) {
-              ChildIDMap[id].forEach((cid) => {
-                thisNodeOffsetWidth += nodeOffsetWidth[cid];
-              });
-              nodeOffsetWidth[id] = Math.max(width, thisNodeOffsetWidth);
-            } else {
-              thisNodeOffsetWidth = width;
+            const thisNodeOffsetWidth = getNodeOffsetWidth(id);
+            let preyPrevSpace = 0;
+            let preyNextSpace = 0;
+            if (!ChildIDMap[id] || ChildIDMap[id].length === 0) {
               childPadLeft += width + nodePad;
+              spaceForPrey += width + nodePad;
+              if (prevId !== undefined && ChildIDMap[prevId] && ChildIDMap[prevId].length) {
+                const prevNodeOffsetWidth = getNodeOffsetWidth(prevId);
+                const prevNodeWidth = getNodeSize(prevId).width;
+                const space = (prevNodeOffsetWidth - prevNodeWidth) / 2;
+                if (space > 0) {
+                  preyPrevSpace = Math.min(spaceForPrey, space);
+                  spaceForPrey -= preyPrevSpace;
+                  childPadLeft -= preyPrevSpace;
+                  nodeToLeft -= preyPrevSpace;
+                }
+              }
+              if (spaceForPrey && nextId !== undefined && ChildIDMap[nextId] && ChildIDMap[nextId].length) {
+                const nextNodeOffsetWidth = getNodeOffsetWidth(nextId);
+                const nextNodeWidth = getNodeSize(nextId).width;
+                const space = (nextNodeOffsetWidth - nextNodeWidth) / 2;
+                if (space > 0) {
+                  preyNextSpace = Math.min(spaceForPrey, space);
+                  childPadLeft -= preyNextSpace;
+                }
+                spaceForPrey = 0;
+              }
+              nodeStyleMap[id].left = nodeToLeft;
+              nodeToLeft += thisNodeOffsetWidth + nodePad - preyNextSpace;
+            } else {
+              doChildPadLeft(id, childPadLeft);
+              const childIDArr = ChildIDMap[id];
+              const lastChildInfo = getNodeSize(childIDArr[childIDArr.length - 1]);
+              const childSpaceStart = getNodeSize(childIDArr[0]).left;
+              const childSpaceEnd = lastChildInfo.left + lastChildInfo.width;
+              const childSpace = childSpaceEnd - childSpaceStart;
+              const gapSpace = Math.abs((childSpace - width) / 2)
+              if (childSpace > width) {
+                nodeStyleMap[id].left = childSpaceStart + gapSpace;
+                nodeToLeft = childSpaceEnd;
+              } else {
+                nodeStyleMap[id].left = childSpaceStart - gapSpace;
+                nodeToLeft += childSpaceEnd + gapSpace;
+              }
             }
-            nodeOffsetWidth[id] = thisNodeOffsetWidth;
-            nodeStyleMap[id] = {
-              top: 0,
-              left: nodeToLeft + (thisNodeOffsetWidth - width) / 2,
-              width,
-              height,
-            };
-            nodeToLeft += thisNodeOffsetWidth + nodePad;
-            doChildPadLeft(id, childPadLeft);
-          });
+            nodeStyleMap[id].top = 0;
+          }
           levelMaxHeightMap[level] = thisLevelMaxHeight;
         }
         for (let level = 0, thisLevelToTop = 0; level <= maxLevel; level += 1) {
