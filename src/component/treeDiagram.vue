@@ -17,7 +17,7 @@ export default {
       this.$nextTick(() => {
         const { nodePad, levelPad } = this;
         const {
-          list, PIDMap, ChildIDMap, levelID, maxLevel,
+          PIDMap, ChildIDMap, levelID, maxLevel,
         } = this.nodeInfo;
         const nodeStyleMap = {};
         const levelMaxHeightMap = {};
@@ -73,7 +73,7 @@ export default {
           return null;
         };
         for (let level = maxLevel; level >= 0; level -= 1) {
-          const thisLevelIDArr = levelID[level];
+          const thisLevelIDArr = levelID[level] || [];
           let startNoChildNodeCount = 0;
           let nodeToLeft = 0;
           let childPadLeft = 0;
@@ -161,45 +161,44 @@ export default {
           }
           levelMaxHeightMap[level] = thisLevelMaxHeight;
         }
-        for (let level = 0, thisLevelToTop = 0; level <= maxLevel; level += 1) {
-          const thisLevelIDArr = levelID[level];
-          const thisLevelMaxHeight = levelMaxHeightMap[level];
-
-          thisLevelIDArr.forEach((id) => {
-            const { height } = nodeStyleMap[id];
-            const { childPad } = nodeStyleMap[PIDMap[id]] || { childPad: 0 };
-            nodeStyleMap[id].top = thisLevelToTop + (thisLevelMaxHeight - height) / 2;
-            nodeStyleMap[id].left += childPad;
-            nodeStyleMap[id].childPad += childPad;
-          });
-          thisLevelToTop += thisLevelMaxHeight + levelPad;
-        }
         let startEmptySpace = Number.MAX_SAFE_INTEGER;
         let diagramWidth = 0;
         let diagramHeight = 0;
         let linkPath = '';
         const distNodeStyleMap = {};
-        const drawLine = (node) => {
-          const PID = PIDMap[node.id];
+        const drawLine = (id) => {
+          const PID = PIDMap[id];
           if (PID !== ROOT_LEVLE_PID) {
             const p = nodeStyleMap[PID];
-            const n = nodeStyleMap[node.id];
+            const n = nodeStyleMap[id];
             linkPath += `M${p.left + p.width / 2} ${p.top + p.height} L${n.left + n.width / 2} ${n.top} `;
           }
         };
-        list.forEach((node) => {
-          const {
-            left, top, width, height,
-          } = nodeStyleMap[node.id];
-          distNodeStyleMap[node.id] = {
-            top: `${top}px`,
-            left: `${left}px`,
-          };
-          drawLine(node);
-          startEmptySpace = Math.min(startEmptySpace, left);
-          diagramWidth = Math.max(diagramWidth, left + width);
-          diagramHeight = Math.max(diagramHeight, top + height);
-        });
+        for (let level = 0, thisLevelToTop = 0; level <= maxLevel; level += 1) {
+          const thisLevelIDArr = levelID[level] || [];
+          const thisLevelMaxHeight = levelMaxHeightMap[level];
+
+          for (let levelIDIndex = 0; levelIDIndex < thisLevelIDArr.length; levelIDIndex += 1) {
+            const id = thisLevelIDArr[levelIDIndex];
+            const { width, height } = nodeStyleMap[id];
+            const { childPad } = nodeStyleMap[PIDMap[id]] || { childPad: 0 };
+            nodeStyleMap[id].top = thisLevelToTop + (thisLevelMaxHeight - height) / 2;
+            nodeStyleMap[id].left += childPad;
+            nodeStyleMap[id].childPad += childPad;
+
+            distNodeStyleMap[id] = {
+              top: `${nodeStyleMap[id].top}px`,
+              left: `${nodeStyleMap[id].left}px`,
+            };
+
+            startEmptySpace = Math.min(startEmptySpace, nodeStyleMap[id].left);
+            diagramWidth = Math.max(diagramWidth, nodeStyleMap[id].left + width);
+            diagramHeight = Math.max(diagramHeight, nodeStyleMap[id].top + height);
+
+            drawLine(id);
+          }
+          thisLevelToTop += thisLevelMaxHeight + levelPad;
+        }
         this.startEmptySpace = startEmptySpace < diagramWidth ? startEmptySpace : 0;
         this.diagramWidth = diagramWidth;
         this.diagramHeight = diagramHeight;
@@ -301,7 +300,7 @@ export default {
 }
 .node-wrap {
   position: absolute;
-  transition: all 0.1s linear;
+  /* transition: all 0.1s linear; */
 }
 path {
   fill: transparent;
