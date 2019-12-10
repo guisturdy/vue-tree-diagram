@@ -6,29 +6,22 @@ export default {
       nodeStyleMap: {},
       diagramWidth: 0,
       diagramHeight: 0,
+      startEmptySpace: 0,
       linkPath: '',
     };
   },
   components: {},
   methods: {
     handleNodePosition() {
+      this.$emit('before-justify-node');
       this.$nextTick(() => {
-        const nodePad = 33;
-        const levelPad = 33;
+        const { nodePad, levelPad } = this;
         const {
           list, PIDMap, ChildIDMap, levelID, maxLevel,
         } = this.nodeInfo;
         const nodeStyleMap = {};
         const levelMaxHeightMap = {};
         const nodeOffsetWidth = {};
-        const doChildPadLeft = (id, size) => {
-          if (ChildIDMap[id]) {
-            ChildIDMap[id].forEach((cid) => {
-              nodeStyleMap[cid].left += size;
-              doChildPadLeft(cid, size);
-            });
-          }
-        };
         let scaleW = null;
         let scaleH = null;
         const getNodeSize = (id) => {
@@ -46,7 +39,9 @@ export default {
               width *= scaleW;
               height *= scaleH;
             }
-            nodeStyleMap[id] = { width, height };
+            nodeStyleMap[id] = {
+              width, height, top: 0, childPad: 0,
+            };
           }
           return nodeStyleMap[id];
         };
@@ -62,8 +57,24 @@ export default {
           }
           return nodeOffsetWidth[id];
         };
+        const getChildSpaceRange = (id) => {
+          const childIDArr = ChildIDMap[id];
+          if (childIDArr && childIDArr.length) {
+            const { childPad } = getNodeSize(id);
+            const lastChildInfo = getNodeSize(childIDArr[childIDArr.length - 1]);
+            const childSpaceStart = getNodeSize(childIDArr[0]).left;
+            const childSpaceEnd = lastChildInfo.left + lastChildInfo.width + nodePad;
+            return {
+              start: childSpaceStart + childPad,
+              end: childSpaceEnd + childPad,
+              space: childSpaceEnd - childSpaceStart,
+            };
+          }
+          return null;
+        };
         for (let level = maxLevel; level >= 0; level -= 1) {
           const thisLevelIDArr = levelID[level];
+          let startNoChildNodeCount = 0;
           let nodeToLeft = 0;
           let childPadLeft = 0;
           let thisLevelMaxHeight = 0;
@@ -78,12 +89,14 @@ export default {
             let preyPrevSpace = 0;
             let preyNextSpace = 0;
             if (!ChildIDMap[id] || ChildIDMap[id].length === 0) {
+              if (levelIDIndex === 0 || startNoChildNodeCount > 0) {
+                startNoChildNodeCount += 1;
+              }
               childPadLeft += width + nodePad;
               spaceForPrey += width + nodePad;
               if (prevId !== undefined && ChildIDMap[prevId] && ChildIDMap[prevId].length) {
-                const prevNodeOffsetWidth = getNodeOffsetWidth(prevId);
-                const prevNodeWidth = getNodeSize(prevId).width;
-                const space = (prevNodeOffsetWidth - prevNodeWidth) / 2;
+                const { width: prevNodeWidth, left: prevNodeLeft } = getNodeSize(prevId);
+                const space = nodeToLeft - prevNodeLeft - prevNodeWidth - nodePad;
                 if (space > 0) {
                   preyPrevSpace = Math.min(spaceForPrey, space);
                   spaceForPrey -= preyPrevSpace;
@@ -92,9 +105,9 @@ export default {
                 }
               }
               if (spaceForPrey && nextId !== undefined && ChildIDMap[nextId] && ChildIDMap[nextId].length) {
-                const nextNodeOffsetWidth = getNodeOffsetWidth(nextId);
+                const { space: nextNodeOffsetWidth } = getChildSpaceRange(nextId);
                 const nextNodeWidth = getNodeSize(nextId).width;
-                const space = (nextNodeOffsetWidth - nextNodeWidth) / 2;
+                const space = (nextNodeOffsetWidth - nextNodeWidth) / 2 - nodePad;
                 if (space > 0) {
                   preyNextSpace = Math.min(spaceForPrey, space);
                   childPadLeft -= preyNextSpace;
@@ -104,22 +117,47 @@ export default {
               nodeStyleMap[id].left = nodeToLeft;
               nodeToLeft += thisNodeOffsetWidth + nodePad - preyNextSpace;
             } else {
-              doChildPadLeft(id, childPadLeft);
-              const childIDArr = ChildIDMap[id];
-              const lastChildInfo = getNodeSize(childIDArr[childIDArr.length - 1]);
-              const childSpaceStart = getNodeSize(childIDArr[0]).left;
-              const childSpaceEnd = lastChildInfo.left + lastChildInfo.width;
-              const childSpace = childSpaceEnd - childSpaceStart;
-              const gapSpace = Math.abs((childSpace - width) / 2)
+              nodeStyleMap[id].childPad += childPadLeft;
+              const {
+                start: childSpaceStart,
+                end: childSpaceEnd,
+                space: childSpace,
+              } = getChildSpaceRange(id);
+              const gapSpace = Math.abs((childSpace - width) / 2);
               if (childSpace > width) {
                 nodeStyleMap[id].left = childSpaceStart + gapSpace;
-                nodeToLeft = childSpaceEnd;
+                nodeToLeft = nodeStyleMap[id].left + width + nodePad;
+                while (
+                  PIDMap[thisLevelIDArr[levelIDIndex + 1]] === PIDMap[id]
+                  && (ChildIDMap[thisLevelIDArr[levelIDIndex + 1]] || []).length === 0
+                ) {
+                  levelIDIndex += 1;
+                  const cursorId = thisLevelIDArr[levelIDIndex];
+                  const { width: cursorNodeWidth } = getNodeSize(cursorId);
+                  nodeStyleMap[cursorId].left = nodeToLeft;
+                  nodeToLeft += cursorNodeWidth + nodePad;
+                }
+                if (nodeToLeft > childSpaceEnd) {
+                  childPadLeft += nodeToLeft - childSpaceEnd;
+                } else {
+                  nodeToLeft = childSpaceEnd;
+                }
               } else {
+                nodeStyleMap[id].childPad += gapSpace;
                 nodeStyleMap[id].left = childSpaceStart - gapSpace;
-                nodeToLeft += childSpaceEnd + gapSpace;
+                nodeToLeft = childSpaceEnd + gapSpace;
+              }
+              if (startNoChildNodeCount > 0) {
+                const { width: prevNodeWidth, left: prevNodeLeft } = getNodeSize(prevId);
+                const canPreySpace = nodeStyleMap[id].left - nodePad - prevNodeWidth - prevNodeLeft;
+                if (canPreySpace > 0) {
+                  for (let index = 0; index < startNoChildNodeCount; index += 1) {
+                    nodeStyleMap[thisLevelIDArr[index]].left += canPreySpace;
+                  }
+                }
+                startNoChildNodeCount = 0;
               }
             }
-            nodeStyleMap[id].top = 0;
           }
           levelMaxHeightMap[level] = thisLevelMaxHeight;
         }
@@ -129,10 +167,14 @@ export default {
 
           thisLevelIDArr.forEach((id) => {
             const { height } = nodeStyleMap[id];
+            const { childPad } = nodeStyleMap[PIDMap[id]] || { childPad: 0 };
             nodeStyleMap[id].top = thisLevelToTop + (thisLevelMaxHeight - height) / 2;
+            nodeStyleMap[id].left += childPad;
+            nodeStyleMap[id].childPad += childPad;
           });
           thisLevelToTop += thisLevelMaxHeight + levelPad;
         }
+        let startEmptySpace = Number.MAX_SAFE_INTEGER;
         let diagramWidth = 0;
         let diagramHeight = 0;
         let linkPath = '';
@@ -154,13 +196,18 @@ export default {
             left: `${left}px`,
           };
           drawLine(node);
+          startEmptySpace = Math.min(startEmptySpace, left);
           diagramWidth = Math.max(diagramWidth, left + width);
           diagramHeight = Math.max(diagramHeight, top + height);
         });
+        this.startEmptySpace = startEmptySpace < diagramWidth ? startEmptySpace : 0;
         this.diagramWidth = diagramWidth;
         this.diagramHeight = diagramHeight;
         this.linkPath = linkPath;
         this.nodeStyleMap = distNodeStyleMap;
+        this.$nextTick(() => {
+          this.$emit('after-justify-node');
+        });
       });
     },
   },
@@ -202,6 +249,14 @@ export default {
   },
   props: {
     data: null,
+    nodePad: {
+      type: Number,
+      default: 1,
+    },
+    levelPad: {
+      type: Number,
+      default: 10,
+    },
   },
   render(createElement) {
     const renderNode = ({ id, node }) => {
@@ -232,7 +287,7 @@ export default {
     ));
     return createElement(
       'div',
-      { staticClass: 'wrap' },
+      { staticClass: 'wrap', style: { 'margin-left': `${-this.startEmptySpace}px` } },
       content,
     );
   },
