@@ -3,7 +3,6 @@ const ROOT_LEVLE_PID = 'ROOT_LEVLE_PID';
 export default {
   data() {
     return {
-      nodeStyleMap: {},
       diagramWidth: 0,
       diagramHeight: 0,
       startEmptySpace: 0,
@@ -39,9 +38,18 @@ export default {
               width *= scaleW;
               height *= scaleH;
             }
-            nodeStyleMap[id] = {
-              width, height, top: 0, childPad: 0,
-            };
+            switch (this.direction) {
+              case 'l-r':
+                nodeStyleMap[id] = {
+                  width: height, height: width, top: 0, childPad: 0,
+                };
+                break;
+              default:
+                // t-b
+                nodeStyleMap[id] = {
+                  width, height, top: 0, childPad: 0,
+                };
+            }
           }
           return nodeStyleMap[id];
         };
@@ -104,7 +112,7 @@ export default {
                   nodeToLeft -= preyPrevSpace;
                 }
               }
-              if (spaceForPrey && nextId !== undefined && ChildIDMap[nextId] && ChildIDMap[nextId].length) {
+              if (spaceForPrey && nextId !== undefined && (ChildIDMap[nextId] || []).length) {
                 const { space: nextNodeOffsetWidth } = getChildSpaceRange(nextId);
                 const nextNodeWidth = getNodeSize(nextId).width;
                 const space = (nextNodeOffsetWidth - nextNodeWidth) / 2 - nodePad;
@@ -127,15 +135,18 @@ export default {
               if (childSpace > width) {
                 nodeStyleMap[id].left = childSpaceStart + gapSpace;
                 nodeToLeft = nodeStyleMap[id].left + width + nodePad;
+                let usedGapSpace = 0;
                 while (
-                  PIDMap[thisLevelIDArr[levelIDIndex + 1]] === PIDMap[id]
+                  levelIDIndex + 1 < thisLevelIDArr.length
                   && (ChildIDMap[thisLevelIDArr[levelIDIndex + 1]] || []).length === 0
+                  && usedGapSpace < gapSpace - nodePad
                 ) {
                   levelIDIndex += 1;
                   const cursorId = thisLevelIDArr[levelIDIndex];
                   const { width: cursorNodeWidth } = getNodeSize(cursorId);
                   nodeStyleMap[cursorId].left = nodeToLeft;
                   nodeToLeft += cursorNodeWidth + nodePad;
+                  usedGapSpace += cursorNodeWidth + nodePad;
                 }
                 if (nodeToLeft > childSpaceEnd) {
                   childPadLeft += nodeToLeft - childSpaceEnd;
@@ -165,48 +176,77 @@ export default {
         let diagramWidth = 0;
         let diagramHeight = 0;
         let linkPath = '';
-        const distNodeStyleMap = {};
-        const drawLine = (id) => {
-          const PID = PIDMap[id];
-          if (PID !== ROOT_LEVLE_PID) {
-            const p = nodeStyleMap[PID];
-            const n = nodeStyleMap[id];
-            linkPath += `M${p.left + p.width / 2} ${p.top + p.height} L${n.left + n.width / 2} ${n.top} `;
+        if (this.direction === 't-b') {
+          const drawLine = (id) => {
+            const PID = PIDMap[id];
+            if (PID !== ROOT_LEVLE_PID) {
+              const p = nodeStyleMap[PID];
+              const n = nodeStyleMap[id];
+              linkPath += `M${p.left + p.width / 2} ${p.top + p.height} L${n.left + n.width / 2} ${n.top} `;
+            }
+          };
+          for (let level = 0, thisLevelToTop = 0; level <= maxLevel; level += 1) {
+            const thisLevelIDArr = levelID[level] || [];
+            const thisLevelMaxHeight = levelMaxHeightMap[level];
+
+            for (let levelIDIndex = 0; levelIDIndex < thisLevelIDArr.length; levelIDIndex += 1) {
+              const id = thisLevelIDArr[levelIDIndex];
+              const { width, height } = nodeStyleMap[id];
+              const { childPad } = nodeStyleMap[PIDMap[id]] || { childPad: 0 };
+              nodeStyleMap[id].top = thisLevelToTop + (thisLevelMaxHeight - height) / 2;
+              nodeStyleMap[id].left += childPad;
+              nodeStyleMap[id].childPad += childPad;
+
+              this.$refs[`node-${id}`].style.top = `${nodeStyleMap[id].top}px`;
+              this.$refs[`node-${id}`].style.left = `${nodeStyleMap[id].left}px`;
+
+              startEmptySpace = Math.min(startEmptySpace, nodeStyleMap[id].left);
+              diagramWidth = Math.max(diagramWidth, nodeStyleMap[id].left + width);
+              diagramHeight = Math.max(diagramHeight, nodeStyleMap[id].top + height);
+
+              drawLine(id);
+            }
+            thisLevelToTop += thisLevelMaxHeight + levelPad;
           }
-        };
-        for (let level = 0, thisLevelToTop = 0; level <= maxLevel; level += 1) {
-          const thisLevelIDArr = levelID[level] || [];
-          const thisLevelMaxHeight = levelMaxHeightMap[level];
+          this.startEmptySpace = startEmptySpace < diagramWidth ? startEmptySpace : 0;
+        } else {
+          const drawLine = (id) => {
+            const PID = PIDMap[id];
+            if (PID !== ROOT_LEVLE_PID) {
+              const p = nodeStyleMap[PID];
+              const n = nodeStyleMap[id];
+              linkPath += `M${p.top + p.height} ${p.left + p.width / 2} L${n.top} ${n.left + n.width / 2} `;
+            }
+          };
+          for (let level = 0, thisLevelToTop = 0; level <= maxLevel; level += 1) {
+            const thisLevelIDArr = levelID[level] || [];
+            const thisLevelMaxHeight = levelMaxHeightMap[level];
 
-          for (let levelIDIndex = 0; levelIDIndex < thisLevelIDArr.length; levelIDIndex += 1) {
-            const id = thisLevelIDArr[levelIDIndex];
-            const { width, height } = nodeStyleMap[id];
-            const { childPad } = nodeStyleMap[PIDMap[id]] || { childPad: 0 };
-            nodeStyleMap[id].top = thisLevelToTop + (thisLevelMaxHeight - height) / 2;
-            nodeStyleMap[id].left += childPad;
-            nodeStyleMap[id].childPad += childPad;
+            for (let levelIDIndex = 0; levelIDIndex < thisLevelIDArr.length; levelIDIndex += 1) {
+              const id = thisLevelIDArr[levelIDIndex];
+              const { width, height } = nodeStyleMap[id];
+              const { childPad } = nodeStyleMap[PIDMap[id]] || { childPad: 0 };
+              nodeStyleMap[id].top = thisLevelToTop + (thisLevelMaxHeight - height) / 2;
+              nodeStyleMap[id].left += childPad;
+              nodeStyleMap[id].childPad += childPad;
 
-            distNodeStyleMap[id] = {
-              top: `${nodeStyleMap[id].top}px`,
-              left: `${nodeStyleMap[id].left}px`,
-            };
+              this.$refs[`node-${id}`].style.left = `${nodeStyleMap[id].top}px`;
+              this.$refs[`node-${id}`].style.top = `${nodeStyleMap[id].left}px`;
 
-            startEmptySpace = Math.min(startEmptySpace, nodeStyleMap[id].left);
-            diagramWidth = Math.max(diagramWidth, nodeStyleMap[id].left + width);
-            diagramHeight = Math.max(diagramHeight, nodeStyleMap[id].top + height);
+              startEmptySpace = Math.min(startEmptySpace, nodeStyleMap[id].left);
+              diagramHeight = Math.max(diagramHeight, nodeStyleMap[id].left + width);
+              diagramWidth = Math.max(diagramWidth, nodeStyleMap[id].top + height);
 
-            drawLine(id);
+              drawLine(id);
+            }
+            thisLevelToTop += thisLevelMaxHeight + levelPad;
           }
-          thisLevelToTop += thisLevelMaxHeight + levelPad;
+          this.startEmptySpace = startEmptySpace < diagramHeight ? startEmptySpace : 0;
         }
-        this.startEmptySpace = startEmptySpace < diagramWidth ? startEmptySpace : 0;
         this.diagramWidth = diagramWidth;
         this.diagramHeight = diagramHeight;
         this.linkPath = linkPath;
-        this.nodeStyleMap = distNodeStyleMap;
-        this.$nextTick(() => {
-          this.$emit('after-justify-node');
-        });
+        this.$emit('after-justify-node');
       });
     },
   },
@@ -256,6 +296,10 @@ export default {
       type: Number,
       default: 10,
     },
+    direction: {
+      type: String,
+      default: 'l-r',
+    },
   },
   render(createElement) {
     const renderNode = ({ id, node }) => {
@@ -264,7 +308,6 @@ export default {
         'div',
         {
           staticClass: 'node-wrap',
-          style: this.nodeStyleMap[id] || { left: 0, top: 0 },
           key: id,
           ref: `node-${id}`,
           attrs: { 'node-id': id },
@@ -284,9 +327,18 @@ export default {
         attrs: { d: this.linkPath },
       })],
     ));
+    let startEmptyKey;
+    switch (this.direction) {
+      case 'l-r':
+        startEmptyKey = 'margin-top';
+        break;
+      default:
+        // t-b
+        startEmptyKey = 'margin-left';
+    }
     return createElement(
       'div',
-      { staticClass: 'wrap', style: { 'margin-left': `${-this.startEmptySpace}px` } },
+      { staticClass: 'wrap', style: { [startEmptyKey]: `${-this.startEmptySpace}px` } },
       content,
     );
   },
