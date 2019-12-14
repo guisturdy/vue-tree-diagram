@@ -87,6 +87,25 @@ A simple component for render tree diagram for Vue.js
   | direction	| tree direction |	String | 't-b', 'l-r' | 't-b' |
   | align	| node align in each row |	String | 'start', 'center', 'end' | 'start' |
 
+
+<details>
+  <summary><b>direction picture description</b> (click to show)</summary>
+
+| l-r | t-b |
+| - | - |
+| ![l-r](./img/direction-l-r.png) | ![t-b](./img/direction-t-b.png) |
+
+</details>
+
+<details>
+  <summary><b>align picture description</b> (click to show)</summary>
+
+| start | center | end |
+| - | - | - |
+| ![start](./img/align-start.png) | ![center](./img/align-center.png) |![end](./img/align-end.png) |
+
+</details>
+
 ### Events
 
   | Event Name	| Description | Parameters |
