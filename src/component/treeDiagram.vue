@@ -13,7 +13,7 @@ export default {
   components: {},
   methods: {
     handleNodePosition() {
-      this.$emit('before-render-node');
+      this.$emit('before-render-tree');
       this.$nextTick(() => {
         const {
           nodePad, levelPad, direction, align,
@@ -36,7 +36,7 @@ export default {
         this.diagramWidth = diagramWidth;
         this.diagramHeight = diagramHeight;
         this.linkPath = linkPath;
-        this.$emit('after-render-node');
+        this.$emit('after-render-tree');
       });
     },
     handleNodeClick(e) {
