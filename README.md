@@ -2,9 +2,11 @@
 
 A simple component for render tree diagram for Vue.js
 
-## Privew
+## Preview
 
-![Privew](./img/privew.png)
+![Preview](./img/preview.png)
+
+> [view preview code](./doc/preview.vue)
 
 ## Install
   
@@ -78,7 +80,7 @@ A simple component for render tree diagram for Vue.js
 ### Attributes
 
   | Attribute	| Description |	Type | Accepted Values | Default |
-  | -	| - |	- | - | - | - |
+  | -	| - |	- | - | - |
   | data	| tree data |	Array | - | - |
   | nodePad	| space of node to node |	Number | - | 1 |
   | levelPad	| space of row to row |	Number | - | 10 |

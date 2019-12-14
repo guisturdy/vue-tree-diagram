@@ -1,6 +1,6 @@
 {
   "name": "vue-tree-diagram",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "A simple component for render tree diagram for Vue.js",
   "main": "src/index.js",
   "scripts": {
@@ -10,12 +10,17 @@
     "type": "git",
     "url": "git+https://github.com/guisturdy/vue-tree-diagram.git"
   },
-  "author": "",
+  "author": "guisturdy",
   "license": "ISC",
   "bugs": {
     "url": "https://github.com/guisturdy/vue-tree-diagram/issues"
   },
   "homepage": "https://github.com/guisturdy/vue-tree-diagram#readme",
+  "keywords": [
+    "vue",
+    "vue-tree",
+    "tree-diagram"
+  ],
   "dependencies": {
     "@vue/cli-service": "^4.1.1",
     "vue": "^2.6.10",
