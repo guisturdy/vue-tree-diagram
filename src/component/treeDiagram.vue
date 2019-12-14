@@ -139,7 +139,6 @@ export default {
                 while (
                   levelIDIndex + 1 < thisLevelIDArr.length
                   && (ChildIDMap[thisLevelIDArr[levelIDIndex + 1]] || []).length === 0
-                  && usedGapSpace < gapSpace - nodePad
                 ) {
                   levelIDIndex += 1;
                   const cursorId = thisLevelIDArr[levelIDIndex];
@@ -147,6 +146,9 @@ export default {
                   nodeStyleMap[cursorId].left = nodeToLeft;
                   nodeToLeft += cursorNodeWidth + nodePad;
                   usedGapSpace += cursorNodeWidth + nodePad;
+                  if (usedGapSpace > gapSpace + nodePad) {
+                    break;
+                  }
                 }
                 if (nodeToLeft > childSpaceEnd) {
                   childPadLeft += nodeToLeft - childSpaceEnd;
@@ -249,11 +251,38 @@ export default {
         this.$emit('after-justify-node');
       });
     },
+    handleNodeClick(e) {
+      let node;
+      if (e.path) {
+        for (let i = 0; i < e.path.length; i += 1) {
+          const v = e.path[i];
+          const nodeIndex = v && v.getAttribute && v.getAttribute('node-index');
+          if (nodeIndex) {
+            node = this.nodeInfo.list[nodeIndex].node;
+            break;
+          }
+        }
+      }
+      if (node) {
+        this.$emit('node-click', node, e);
+      }
+    },
   },
   mounted() {
   },
   watch: {
-
+    nodeInfo() {
+      this.handleNodePosition();
+    },
+    nodePad() {
+      this.handleNodePosition();
+    },
+    levelPad() {
+      this.handleNodePosition();
+    },
+    direction() {
+      this.handleNodePosition();
+    },
   },
   computed: {
     nodeInfo() {
@@ -302,44 +331,71 @@ export default {
     },
   },
   render(createElement) {
-    const renderNode = ({ id, node }) => {
-      const rNode = this.$scopedSlots[node.type] || this.$scopedSlots.default;
+    const {
+      diagramWidth, diagramHeight, linkPath, startEmptySpace,
+      nodeInfo, direction,
+      $scopedSlots, _l,
+    } = this;
+    const renderNode = ({ id, node }, index) => {
+      const rNode = $scopedSlots[node.type] || $scopedSlots.default;
       return createElement(
         'div',
         {
           staticClass: 'node-wrap',
           key: id,
           ref: `node-${id}`,
-          attrs: { 'node-id': id },
+          attrs: { 'node-index': index },
+          on: {
+            click: this.handleNodeClick,
+          },
         },
         [rNode ? rNode(node) : null],
       );
     };
     // eslint-disable-next-line no-underscore-dangle
-    const content = this._l(this.nodeInfo.list, renderNode);
+    const content = _l(nodeInfo.list, renderNode);
     content.unshift(createElement(
       'svg',
       {
-        attrs: { width: this.diagramWidth, height: this.diagramHeight },
-        style: { width: `${this.diagramWidth}px`, height: `${this.diagramHeight}px` },
+        attrs: { width: diagramWidth, height: diagramHeight },
+        style: { width: `${diagramWidth}px`, height: `${diagramHeight}px` },
       },
       [createElement('path', {
-        attrs: { d: this.linkPath },
+        attrs: { d: linkPath },
       })],
     ));
     let startEmptyKey;
-    switch (this.direction) {
+    let nodeBoxWidth = diagramWidth;
+    let nodeBoxHeight = diagramHeight;
+    switch (direction) {
       case 'l-r':
-        startEmptyKey = 'margin-top';
+        nodeBoxHeight -= startEmptySpace;
+        startEmptyKey = 'translateY';
         break;
       default:
         // t-b
-        startEmptyKey = 'margin-left';
+        nodeBoxWidth -= startEmptySpace;
+        startEmptyKey = 'translateX';
     }
     return createElement(
       'div',
-      { staticClass: 'wrap', style: { [startEmptyKey]: `${-this.startEmptySpace}px` } },
-      content,
+      {
+        staticClass: 'wrap',
+        style: {
+          width: `${nodeBoxWidth}px`,
+          height: `${nodeBoxHeight}px`,
+        },
+      },
+      [createElement(
+        'div',
+        {
+          staticClass: 'node-box',
+          style: {
+            transform: `${startEmptyKey}(${-startEmptySpace}px)`,
+          },
+        },
+        content,
+      )],
     );
   },
 };
