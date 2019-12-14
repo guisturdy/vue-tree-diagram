@@ -1,8 +1,6 @@
 <script>
 import util from './util';
 
-const ROOT_LEVLE_PID = 'ROOT_LEVLE_PID';
-
 export default {
   data() {
     return {
@@ -74,33 +72,7 @@ export default {
   },
   computed: {
     nodeInfo() {
-      const list = [];
-      const PIDMap = {};
-      const ChildIDMap = {};
-      const levelID = {};
-      const existID = {};
-      let maxLevel = 0;
-      const pushNode = (node, PID, level) => {
-        let id = node.id || Math.random();
-        if (existID[id]) {
-          id = Math.random();
-        }
-        existID[id] = true;
-        PIDMap[id] = PID;
-        ChildIDMap[PID] = ChildIDMap[PID] || [];
-        ChildIDMap[PID].push(id);
-        levelID[level] = levelID[level] || [];
-        levelID[level].push(id);
-        list.push({ id, PID, node });
-        maxLevel = Math.max(level, maxLevel);
-        if (node.children && node.children.forEach) {
-          node.children.forEach((cnode) => pushNode(cnode, id, level + 1));
-        }
-      };
-      this.data.forEach((node) => pushNode(node, ROOT_LEVLE_PID, 0));
-      return {
-        list, PIDMap, ChildIDMap, levelID, maxLevel,
-      };
+      return util.getNodeInfo(this.data);
     },
   },
   props: {
