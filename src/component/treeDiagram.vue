@@ -1,5 +1,8 @@
 <script>
+import util from './util';
+
 const ROOT_LEVLE_PID = 'ROOT_LEVLE_PID';
+
 export default {
   data() {
     return {
@@ -14,237 +17,22 @@ export default {
     handleNodePosition() {
       this.$emit('before-justify-node');
       this.$nextTick(() => {
-        const { nodePad, levelPad } = this;
+        const { nodePad, levelPad, direction } = this;
         const {
           PIDMap, ChildIDMap, levelID, maxLevel,
         } = this.nodeInfo;
-        const nodeStyleMap = {};
-        const levelMaxHeightMap = {};
-        const nodeOffsetWidth = {};
-        let scaleW = null;
-        let scaleH = null;
-        const getNodeSize = (id) => {
-          if (!nodeStyleMap[id]) {
-            let {
-              width, height,
-            } = this.$refs[`node-${id}`].getBoundingClientRect();
-            if (scaleW === null && width > 0 && height > 0) {
-              const offsetW = this.$refs[`node-${id}`].offsetWidth;
-              const offsetH = this.$refs[`node-${id}`].offsetHeight;
-              scaleW = offsetW / width;
-              scaleH = offsetH / height;
-            }
-            if (scaleW) {
-              width *= scaleW;
-              height *= scaleH;
-            }
-            switch (this.direction) {
-              case 'l-r':
-                nodeStyleMap[id] = {
-                  width: height, height: width, top: 0, childPad: 0,
-                };
-                break;
-              default:
-                // t-b
-                nodeStyleMap[id] = {
-                  width, height, top: 0, childPad: 0,
-                };
-            }
-          }
-          return nodeStyleMap[id];
-        };
-        const getNodeOffsetWidth = (id) => {
-          if (!nodeOffsetWidth[id]) {
-            let thisNodeOffsetWidth = 0;
-            if (ChildIDMap[id] && ChildIDMap[id].length) {
-              ChildIDMap[id].forEach((cid) => {
-                thisNodeOffsetWidth += getNodeOffsetWidth(cid);
-              });
-            }
-            nodeOffsetWidth[id] = Math.max(getNodeSize(id).width, thisNodeOffsetWidth);
-          }
-          return nodeOffsetWidth[id];
-        };
-        const getChildSpaceRange = (id) => {
-          const childIDArr = ChildIDMap[id];
-          if (childIDArr && childIDArr.length) {
-            const { childPad } = getNodeSize(id);
-            const lastChildInfo = getNodeSize(childIDArr[childIDArr.length - 1]);
-            const childSpaceStart = getNodeSize(childIDArr[0]).left;
-            const childSpaceEnd = lastChildInfo.left + lastChildInfo.width + nodePad;
-            return {
-              start: childSpaceStart + childPad,
-              end: childSpaceEnd + childPad,
-              space: childSpaceEnd - childSpaceStart,
-            };
-          }
-          return null;
-        };
-        for (let level = maxLevel; level >= 0; level -= 1) {
-          const thisLevelIDArr = levelID[level] || [];
-          let startNoChildNodeCount = 0;
-          let nodeToLeft = 0;
-          let childPadLeft = 0;
-          let thisLevelMaxHeight = 0;
-          let spaceForPrey = 0;
-          for (let levelIDIndex = 0; levelIDIndex < thisLevelIDArr.length; levelIDIndex += 1) {
-            const id = thisLevelIDArr[levelIDIndex];
-            const nextId = thisLevelIDArr[levelIDIndex + 1];
-            const prevId = thisLevelIDArr[levelIDIndex - 1];
-            const { width, height } = getNodeSize(id);
-            thisLevelMaxHeight = Math.max(thisLevelMaxHeight, height);
-            const thisNodeOffsetWidth = getNodeOffsetWidth(id);
-            let preyPrevSpace = 0;
-            let preyNextSpace = 0;
-            if (!ChildIDMap[id] || ChildIDMap[id].length === 0) {
-              if (levelIDIndex === 0 || startNoChildNodeCount > 0) {
-                startNoChildNodeCount += 1;
-              }
-              childPadLeft += width + nodePad;
-              spaceForPrey += width + nodePad;
-              if (prevId !== undefined && ChildIDMap[prevId] && ChildIDMap[prevId].length) {
-                const { width: prevNodeWidth, left: prevNodeLeft } = getNodeSize(prevId);
-                const space = nodeToLeft - prevNodeLeft - prevNodeWidth - nodePad;
-                if (space > 0) {
-                  preyPrevSpace = Math.min(spaceForPrey, space);
-                  spaceForPrey -= preyPrevSpace;
-                  childPadLeft -= preyPrevSpace;
-                  nodeToLeft -= preyPrevSpace;
-                }
-              }
-              if (spaceForPrey && nextId !== undefined && (ChildIDMap[nextId] || []).length) {
-                const { space: nextNodeOffsetWidth } = getChildSpaceRange(nextId);
-                const nextNodeWidth = getNodeSize(nextId).width;
-                const space = (nextNodeOffsetWidth - nextNodeWidth) / 2 - nodePad;
-                if (space > 0) {
-                  preyNextSpace = Math.min(spaceForPrey, space);
-                  childPadLeft -= preyNextSpace;
-                }
-                spaceForPrey = 0;
-              }
-              nodeStyleMap[id].left = nodeToLeft;
-              nodeToLeft += thisNodeOffsetWidth + nodePad - preyNextSpace;
-            } else {
-              nodeStyleMap[id].childPad += childPadLeft;
-              const {
-                start: childSpaceStart,
-                end: childSpaceEnd,
-                space: childSpace,
-              } = getChildSpaceRange(id);
-              const gapSpace = Math.abs((childSpace - width) / 2);
-              if (childSpace > width) {
-                nodeStyleMap[id].left = childSpaceStart + gapSpace;
-                nodeToLeft = nodeStyleMap[id].left + width + nodePad;
-                let usedGapSpace = 0;
-                while (
-                  levelIDIndex + 1 < thisLevelIDArr.length
-                  && (ChildIDMap[thisLevelIDArr[levelIDIndex + 1]] || []).length === 0
-                ) {
-                  levelIDIndex += 1;
-                  const cursorId = thisLevelIDArr[levelIDIndex];
-                  const { width: cursorNodeWidth } = getNodeSize(cursorId);
-                  nodeStyleMap[cursorId].left = nodeToLeft;
-                  nodeToLeft += cursorNodeWidth + nodePad;
-                  usedGapSpace += cursorNodeWidth + nodePad;
-                  if (usedGapSpace > gapSpace + nodePad) {
-                    break;
-                  }
-                }
-                if (nodeToLeft > childSpaceEnd) {
-                  childPadLeft += nodeToLeft - childSpaceEnd;
-                } else {
-                  nodeToLeft = childSpaceEnd;
-                }
-              } else {
-                nodeStyleMap[id].childPad += gapSpace;
-                nodeStyleMap[id].left = childSpaceStart - gapSpace;
-                nodeToLeft = childSpaceEnd + gapSpace;
-              }
-              if (startNoChildNodeCount > 0) {
-                const { width: prevNodeWidth, left: prevNodeLeft } = getNodeSize(prevId);
-                const canPreySpace = nodeStyleMap[id].left - nodePad - prevNodeWidth - prevNodeLeft;
-                if (canPreySpace > 0) {
-                  for (let index = 0; index < startNoChildNodeCount; index += 1) {
-                    nodeStyleMap[thisLevelIDArr[index]].left += canPreySpace;
-                  }
-                }
-                startNoChildNodeCount = 0;
-              }
-            }
-          }
-          levelMaxHeightMap[level] = thisLevelMaxHeight;
-        }
-        let startEmptySpace = Number.MAX_SAFE_INTEGER;
-        let diagramWidth = 0;
-        let diagramHeight = 0;
-        let linkPath = '';
-        if (this.direction === 't-b') {
-          const drawLine = (id) => {
-            const PID = PIDMap[id];
-            if (PID !== ROOT_LEVLE_PID) {
-              const p = nodeStyleMap[PID];
-              const n = nodeStyleMap[id];
-              linkPath += `M${p.left + p.width / 2} ${p.top + p.height} L${n.left + n.width / 2} ${n.top} `;
-            }
-          };
-          for (let level = 0, thisLevelToTop = 0; level <= maxLevel; level += 1) {
-            const thisLevelIDArr = levelID[level] || [];
-            const thisLevelMaxHeight = levelMaxHeightMap[level];
-
-            for (let levelIDIndex = 0; levelIDIndex < thisLevelIDArr.length; levelIDIndex += 1) {
-              const id = thisLevelIDArr[levelIDIndex];
-              const { width, height } = nodeStyleMap[id];
-              const { childPad } = nodeStyleMap[PIDMap[id]] || { childPad: 0 };
-              nodeStyleMap[id].top = thisLevelToTop + (thisLevelMaxHeight - height) / 2;
-              nodeStyleMap[id].left += childPad;
-              nodeStyleMap[id].childPad += childPad;
-
-              this.$refs[`node-${id}`].style.top = `${nodeStyleMap[id].top}px`;
-              this.$refs[`node-${id}`].style.left = `${nodeStyleMap[id].left}px`;
-
-              startEmptySpace = Math.min(startEmptySpace, nodeStyleMap[id].left);
-              diagramWidth = Math.max(diagramWidth, nodeStyleMap[id].left + width);
-              diagramHeight = Math.max(diagramHeight, nodeStyleMap[id].top + height);
-
-              drawLine(id);
-            }
-            thisLevelToTop += thisLevelMaxHeight + levelPad;
-          }
-          this.startEmptySpace = startEmptySpace < diagramWidth ? startEmptySpace : 0;
-        } else {
-          const drawLine = (id) => {
-            const PID = PIDMap[id];
-            if (PID !== ROOT_LEVLE_PID) {
-              const p = nodeStyleMap[PID];
-              const n = nodeStyleMap[id];
-              linkPath += `M${p.top + p.height} ${p.left + p.width / 2} L${n.top} ${n.left + n.width / 2} `;
-            }
-          };
-          for (let level = 0, thisLevelToTop = 0; level <= maxLevel; level += 1) {
-            const thisLevelIDArr = levelID[level] || [];
-            const thisLevelMaxHeight = levelMaxHeightMap[level];
-
-            for (let levelIDIndex = 0; levelIDIndex < thisLevelIDArr.length; levelIDIndex += 1) {
-              const id = thisLevelIDArr[levelIDIndex];
-              const { width, height } = nodeStyleMap[id];
-              const { childPad } = nodeStyleMap[PIDMap[id]] || { childPad: 0 };
-              nodeStyleMap[id].top = thisLevelToTop + (thisLevelMaxHeight - height) / 2;
-              nodeStyleMap[id].left += childPad;
-              nodeStyleMap[id].childPad += childPad;
-
-              this.$refs[`node-${id}`].style.left = `${nodeStyleMap[id].top}px`;
-              this.$refs[`node-${id}`].style.top = `${nodeStyleMap[id].left}px`;
-
-              startEmptySpace = Math.min(startEmptySpace, nodeStyleMap[id].left);
-              diagramHeight = Math.max(diagramHeight, nodeStyleMap[id].left + width);
-              diagramWidth = Math.max(diagramWidth, nodeStyleMap[id].top + height);
-
-              drawLine(id);
-            }
-            thisLevelToTop += thisLevelMaxHeight + levelPad;
-          }
-          this.startEmptySpace = startEmptySpace < diagramHeight ? startEmptySpace : 0;
-        }
+        const getNodeRef = (id) => this.$refs[`node-${id}`];
+        const {
+          startEmptySpace,
+          diagramWidth,
+          diagramHeight,
+          linkPath,
+        } = util.distributionNodePosition(
+          nodePad, levelPad, direction,
+          PIDMap, ChildIDMap, levelID, maxLevel,
+          getNodeRef,
+        );
+        this.startEmptySpace = startEmptySpace;
         this.diagramWidth = diagramWidth;
         this.diagramHeight = diagramHeight;
         this.linkPath = linkPath;
