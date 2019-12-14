@@ -15,9 +15,11 @@ export default {
     handleNodePosition() {
       this.$emit('before-render-node');
       this.$nextTick(() => {
-        const { nodePad, levelPad, direction } = this;
         const {
-          PIDMap, ChildIDMap, levelID, maxLevel,
+          nodePad, levelPad, direction, align,
+        } = this;
+        const {
+          list, PIDMap, indexMap, ChildIDMap, levelID, maxLevel,
         } = this.nodeInfo;
         const getNodeRef = (id) => this.$refs[`node-${id}`];
         const {
@@ -26,8 +28,8 @@ export default {
           diagramHeight,
           linkPath,
         } = util.distributionNodePosition(
-          nodePad, levelPad, direction,
-          PIDMap, ChildIDMap, levelID, maxLevel,
+          nodePad, levelPad, direction, align,
+          list, PIDMap, indexMap, ChildIDMap, levelID, maxLevel,
           getNodeRef,
         );
         this.startEmptySpace = startEmptySpace;
@@ -55,6 +57,7 @@ export default {
     },
   },
   mounted() {
+    this.handleNodePosition();
   },
   watch: {
     nodeInfo() {
@@ -69,6 +72,9 @@ export default {
     direction() {
       this.handleNodePosition();
     },
+    align() {
+      this.handleNodePosition();
+    },
   },
   computed: {
     nodeInfo() {
@@ -76,7 +82,10 @@ export default {
     },
   },
   props: {
-    data: null,
+    data: {
+      type: Array,
+      default: () => [],
+    },
     nodePad: {
       type: Number,
       default: 1,
@@ -88,6 +97,10 @@ export default {
     direction: {
       type: String,
       default: 'l-r',
+    },
+    align: {
+      type: String,
+      default: 'start',
     },
   },
   render(createElement) {
@@ -120,9 +133,10 @@ export default {
         attrs: { width: diagramWidth, height: diagramHeight },
         style: { width: `${diagramWidth}px`, height: `${diagramHeight}px` },
       },
-      [createElement('path', {
-        attrs: { d: linkPath },
-      })],
+      _l(linkPath, (d, type) => createElement('path', {
+        staticClass: `path-${type}`,
+        attrs: { d },
+      })),
     ));
     let startEmptyKey;
     let nodeBoxWidth = diagramWidth;
@@ -168,7 +182,6 @@ export default {
 }
 .node-wrap {
   position: absolute;
-  /* transition: all 0.1s linear; */
 }
 path {
   fill: transparent;

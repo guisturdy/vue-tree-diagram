@@ -2,18 +2,21 @@ const ROOT_LEVLE_PID = 'ROOT_LEVLE_PID';
 
 class NodePositionUtil {
   constructor(
-    nodePad, levelPad, direction,
-    PIDMap, ChildIDMap, levelID, maxLevel,
+    nodePad, levelPad, direction, align,
+    list, PIDMap, indexMap, ChildIDMap, levelID, maxLevel,
     getNodeRef,
   ) {
     this.config = {
       nodePad,
       levelPad,
+      direction,
+      align,
+      list,
       PIDMap,
+      indexMap,
       ChildIDMap,
       levelID,
       maxLevel,
-      direction,
     };
     this.getNodeRef = getNodeRef;
 
@@ -24,9 +27,15 @@ class NodePositionUtil {
     this.scaleH = null;
 
     this.hasChild = this.hasChild.bind(this);
+    this.getNodeType = this.getNodeType.bind(this);
     this.getNodeSize = this.getNodeSize.bind(this);
     this.getNodeOffsetWidth = this.getNodeOffsetWidth.bind(this);
     this.getChildSpaceRange = this.getChildSpaceRange.bind(this);
+  }
+
+  getNodeType(id) {
+    const { list, indexMap } = this.config;
+    return list[indexMap[id]].node.type;
   }
 
   hasChild(id) {
@@ -102,12 +111,12 @@ class NodePositionUtil {
 
   distributionNodePosition() {
     const {
-      nodePad, levelPad, direction,
+      nodePad, levelPad, direction, align,
       PIDMap, levelID, maxLevel,
     } = this.config;
     const {
       nodeStyleMap, levelMaxHeightMap,
-      getNodeSize, getNodeOffsetWidth, getChildSpaceRange, hasChild,
+      getNodeSize, getNodeOffsetWidth, getChildSpaceRange, hasChild, getNodeType,
     } = this;
 
     for (let level = maxLevel; level >= 0; level -= 1) {
@@ -200,7 +209,7 @@ class NodePositionUtil {
               nodeToLeft = childSpaceEnd;
             }
           } else {
-            nodeStyleMap[id].childPad += gapSpace;
+            // nodeStyleMap[id].childPad += gapSpace;
             nodeStyleMap[id].left = childSpaceStart - gapSpace;
             nodeToLeft = childSpaceEnd + gapSpace;
           }
@@ -221,7 +230,7 @@ class NodePositionUtil {
     let startEmptySpace = Number.MAX_SAFE_INTEGER;
     let diagramWidth = 0;
     let diagramHeight = 0;
-    let linkPath = '';
+    const linkPath = {};
 
     let drawLine;
     let setupNodeStyleAndDiagramSize;
@@ -233,7 +242,9 @@ class NodePositionUtil {
           if (PIDMap[PID]) {
             const p = nodeStyleMap[PID];
             const n = nodeStyleMap[id];
-            linkPath += `M${p.top + p.height} ${p.left + p.width / 2} L${n.top} ${n.left + n.width / 2} `;
+            const pNodeType = getNodeType(PID);
+            linkPath[pNodeType] = linkPath[pNodeType] || [];
+            linkPath[pNodeType] += `M${p.top + p.height} ${p.left + p.width / 2} L${n.top} ${n.left + n.width / 2} `;
           }
         };
         setupNodeStyleAndDiagramSize = (id) => {
@@ -255,7 +266,9 @@ class NodePositionUtil {
           if (PIDMap[PID]) {
             const p = nodeStyleMap[PID];
             const n = nodeStyleMap[id];
-            linkPath += `M${p.left + p.width / 2} ${p.top + p.height} L${n.left + n.width / 2} ${n.top} `;
+            const pNodeType = getNodeType(PID);
+            linkPath[pNodeType] = linkPath[pNodeType] || [];
+            linkPath[pNodeType] += `M${p.left + p.width / 2} ${p.top + p.height} L${n.left + n.width / 2} ${n.top} `;
           }
         };
         setupNodeStyleAndDiagramSize = (id) => {
@@ -279,7 +292,16 @@ class NodePositionUtil {
         const id = thisLevelIDArr[levelIDIndex];
         const { height } = nodeStyleMap[id];
         const { childPad } = nodeStyleMap[PIDMap[id]] || { childPad: 0 };
-        nodeStyleMap[id].top = thisLevelToTop + (thisLevelMaxHeight - height) / 2;
+        switch (align) {
+          case 'center':
+            nodeStyleMap[id].top = thisLevelToTop + (thisLevelMaxHeight - height) / 2;
+            break;
+          case 'end':
+            nodeStyleMap[id].top = thisLevelToTop + (thisLevelMaxHeight - height);
+            break;
+          default: // start
+            nodeStyleMap[id].top = thisLevelToTop;
+        }
         nodeStyleMap[id].left += childPad;
         nodeStyleMap[id].childPad += childPad;
 
@@ -301,13 +323,13 @@ class NodePositionUtil {
   }
 }
 function distributionNodePosition(
-  nodePad, levelPad, direction,
-  PIDMap, ChildIDMap, levelID, maxLevel,
+  nodePad, levelPad, direction, align,
+  list, PIDMap, indexMap, ChildIDMap, levelID, maxLevel,
   getNodeRef,
 ) {
   const npu = new NodePositionUtil(
-    nodePad, levelPad, direction,
-    PIDMap, ChildIDMap, levelID, maxLevel,
+    nodePad, levelPad, direction, align,
+    list, PIDMap, indexMap, ChildIDMap, levelID, maxLevel,
     getNodeRef,
   );
   return npu.distributionNodePosition();
@@ -318,6 +340,7 @@ function getNodeInfo(data = []) {
   const ChildIDMap = {};
   const levelID = {};
   const existID = {};
+  const indexMap = {};
   let maxLevel = 0;
   const pushNode = (node, PID, level) => {
     let id = node.id || Math.random();
@@ -330,6 +353,7 @@ function getNodeInfo(data = []) {
     ChildIDMap[PID].push(id);
     levelID[level] = levelID[level] || [];
     levelID[level].push(id);
+    indexMap[id] = list.length;
     list.push({ id, PID, node });
     maxLevel = Math.max(level, maxLevel);
     if (node.children && node.children.forEach) {
@@ -338,7 +362,7 @@ function getNodeInfo(data = []) {
   };
   data.forEach((node) => pushNode(node, ROOT_LEVLE_PID, 0));
   return {
-    list, PIDMap, ChildIDMap, levelID, maxLevel,
+    list, indexMap, PIDMap, ChildIDMap, levelID, maxLevel,
   };
 }
 export default {
