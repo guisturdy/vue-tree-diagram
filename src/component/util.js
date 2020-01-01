@@ -44,23 +44,12 @@ class NodePositionUtil {
   }
 
   getNodeSize(id) {
-    const { nodeStyleMap, scaleW } = this;
+    const { nodeStyleMap } = this;
     const { direction } = this.config;
     if (!nodeStyleMap[id]) {
       const $nodeRef = this.getNodeRef(id);
-      let {
-        width, height,
-      } = $nodeRef.getBoundingClientRect();
-      if (scaleW === null && width > 0 && height > 0) {
-        const offsetW = $nodeRef.offsetWidth;
-        const offsetH = $nodeRef.offsetHeight;
-        this.scaleW = offsetW / width;
-        this.scaleH = offsetH / height;
-      }
-      if (this.scaleW) {
-        width *= this.scaleW;
-        height *= this.scaleH;
-      }
+      const width = $nodeRef.offsetWidth;
+      const height = $nodeRef.offsetHeight;
       switch (direction) {
         case 'l-r':
           nodeStyleMap[id] = {
